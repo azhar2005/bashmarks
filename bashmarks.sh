@@ -21,16 +21,11 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
 # POSSIBILITY OF SUCH DAMAGE.
 
-
-# USAGE: 
-# s bookmarkname - saves the curr dir as bookmarkname
-# g bookmarkname - jumps to the that bookmark
-# g b[TAB] - tab completion is available
-# p bookmarkname - prints the bookmark
-# p b[TAB] - tab completion is available
-# d bookmarkname - deletes the bookmark
-# d [TAB] - tab completion is available
-# l - list all bookmarks
+# bk -d -s [PATH] tagname - saves the path specified or the current directory against the bookmark
+# bk -d -l - list the directory bookmarks
+# bk -d -g bookmarkname
+# bk -c -s [command] tagname - saves the specified command or the last run command against the bookmark
+# bk g[TAB] -Jumps to that bookmark 
 
 # setup file to store bookmarks
 if [ ! -n "$SDIRS" ]; then
@@ -41,20 +36,20 @@ touch $SDIRS
 RED="0;31m"
 GREEN="0;33m"
 
+
 # save current directory to bookmarks
-function s {
-    check_help $1
-    _bookmark_name_valid "$@"
-    if [ -z "$exit_message" ]; then
-        _purge_line "$SDIRS" "export DIR_$1="
-        CURDIR=$(echo $PWD| sed "s#^$HOME#\$HOME#g")
-        echo "export DIR_$1=\"$CURDIR\"" >> $SDIRS
+function save {
+#    check_help $1
+    _bookmark_name_valid "$2"
+    if [ -z "$exit_message" ] ; then
+        _purge_line "$SDIRS" "export DIR_$2="
+        echo "export DIR_$2=\"$1\"" >> $SDIRS
     fi
 }
 
 # jump to bookmark
-function g {
-    check_help $1
+function go {
+#	check_help $1
     source $SDIRS
     target="$(eval $(echo echo $(echo \$DIR_$1)))"
     if [ -d "$target" ]; then
@@ -67,17 +62,16 @@ function g {
 }
 
 # print bookmark
-function p {
-    check_help $1
-    source $SDIRS
-    echo "$(eval $(echo echo $(echo \$DIR_$1)))"
-}
+#function p {
+#    check_help $1
+#    source $SDIRS
+#    echo "$(eval $(echo echo $(echo \$DIR_$1)))"
+#}
 
 # delete bookmark
-function d {
-    check_help $1
-    _bookmark_name_valid "$@"
-    if [ -z "$exit_message" ]; then
+function del {
+    _bookmark_name_valid "$1"
+    if [ -z "$exit_message" ] ; then
         _purge_line "$SDIRS" "export DIR_$1="
         unset "DIR_$1"
     fi
@@ -85,20 +79,18 @@ function d {
 
 # print out help for the forgetful
 function check_help {
-    if [ "$1" = "-h" ] || [ "$1" = "-help" ] || [ "$1" = "--help" ] ; then
         echo ''
-        echo 's <bookmark_name> - Saves the current directory as "bookmark_name"'
-        echo 'g <bookmark_name> - Goes (cd) to the directory associated with "bookmark_name"'
-        echo 'p <bookmark_name> - Prints the directory associated with "bookmark_name"'
-        echo 'd <bookmark_name> - Deletes the bookmark'
-        echo 'l                 - Lists all available bookmarks'
+		echo "Usage: "
+        echo 'bk -d -s <bookmark_name> - Saves the current directory as "bookmark_name"'
+        echo 'bk -d -g <bookmark_name> - Goes (cd) to the directory associated with "bookmark_name"'
+        echo 'bk -d    <bookmark_name> - Deletes the bookmark'
+        echo 'bk -d -l                 - Lists all available bookmarks'
         kill -SIGINT $$
-    fi
 }
 
 # list bookmarks with dirnam
-function l {
-    check_help $1
+function list {
+#    check_help $1
     source $SDIRS
         
     # if color output is not working for you, comment out the line below '\033[1;32m' == "red"
@@ -107,16 +99,12 @@ function l {
     # uncomment this line if color output is not working with the line above
     # env | grep "^DIR_" | cut -c5- | sort |grep "^.*=" 
 }
-# list bookmarks without dirname
-function _l {
-    source $SDIRS
-    env | grep "^DIR_" | cut -c5- | sort | grep "^.*=" | cut -f1 -d "=" 
-}
+
 
 # validate bookmark name
 function _bookmark_name_valid {
     exit_message=""
-    if [ -z $1 ]; then
+    if [ -z $1 ] ; then
         exit_message="bookmark name required"
         echo $exit_message
     elif [ "$1" != "$(echo $1 | sed 's/[^A-Za-z0-9_]//g')" ]; then
@@ -126,18 +114,18 @@ function _bookmark_name_valid {
 }
 
 # completion command
-function _comp {
-    local curw
-    COMPREPLY=()
-    curw=${COMP_WORDS[COMP_CWORD]}
-    COMPREPLY=($(compgen -W '`_l`' -- $curw))
-    return 0
-}
+#function _comp {
+#    local curw
+#    COMPREPLY=()
+#    curw=${COMP_WORDS[COMP_CWORD]}
+#    COMPREPLY=($(compgen -W '`_l`' -- $curw))
+#    return 0
+#}
 
 # ZSH completion command
-function _compzsh {
-    reply=($(_l))
-}
+#function _compzsh {
+#    reply=($(_l))
+#}
 
 # safe delete line from sdirs
 function _purge_line {
@@ -156,14 +144,79 @@ function _purge_line {
     fi
 }
 
-# bind completion command for g,p,d to _comp
-if [ $ZSH_VERSION ]; then
-    compctl -K _compzsh g
-    compctl -K _compzsh p
-    compctl -K _compzsh d
-else
-    shopt -s progcomp
-    complete -F _comp g
-    complete -F _comp p
-    complete -F _comp d
-fi
+
+#if [ $ZSH_VERSION ]; then
+#   compctl -K _compzsh g
+#    compctl -K _compzsh p
+#    compctl -K _compzsh d
+#else
+#    shopt -s progcomp
+#    complete -F _comp g
+#    complete -F _comp p
+#    complete -F _comp d
+#fi
+
+
+function bk {
+#	unset OPTIND
+	while true ; do
+		case $1 in 
+			-d)
+				storage="dir" 
+				shift
+				case $1 in
+					-s)
+						shift
+						path_or_bkname=$1
+						shift
+						if [ -z $1 ]
+						then 
+# No path specified using current path
+							save $(pwd) $path_or_bkname											
+						else
+# Path specified is being used
+							save $path_or_bkname $1
+						fi
+						;;
+					
+					-g)
+						shift
+						go $1
+						;;
+	
+					-l)
+						list
+						;;
+					-d)
+						shift
+						del $1
+						;;
+					-h)
+						check_help
+						;;		
+					-*)
+						echo "Invalid usage1"			
+						check_help
+						;;
+				esac
+				break
+				;;	
+			-c)
+				c
+				break
+				;;
+		
+			-h)
+				check_help
+				;;
+			-*)
+				echo "Invalid usage"
+				check_help
+				break
+				;;
+		esac
+	done
+
+}
+
+
